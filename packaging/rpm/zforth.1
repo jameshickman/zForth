@@ -1,0 +1,161 @@
+.TH ZFORTH 1 "2025-08-15" "zForth" "User Commands"
+.SH NAME
+zforth \- small, embeddable Forth interpreter and compiler
+.SH SYNOPSIS
+.B zforth
+.RI [ options ]
+.RI [ file .\|.\|.]
+.SH DESCRIPTION
+.B zForth
+is a small Forth interpreter and compiler written in ANSI C, intended as a
+lightweight scripting language for extending applications on resource
+constrained systems.
+.PP
+The compiler and virtual machine state is kept in a single context struct, so
+multiple independent instances may run in parallel. The dictionary is stored in
+variable length cells, and the virtual machine performs boundary checks on all
+memory and stack accesses instead of touching host memory directly.
+.PP
+Each
+.I file
+given on the command line is read and evaluated in order. When no files are
+given, or after all files have been evaluated,
+.B zforth
+reads from standard input. If standard input is a terminal, and
+.B zforth
+was built with readline support, line editing and history are available.
+.PP
+.B zforth
+starts with an empty dictionary containing only the primitives. The standard
+library shipped in
+.I %%DATADIR%%
+is not loaded automatically; source
+.I core.zf
+first to get the basic words and control structures:
+.PP
+.RS
+.EX
+zforth %%DATADIR%%/core.zf
+.EE
+.RE
+.SH OPTIONS
+.TP
+.B \-h
+Show a short usage summary and exit.
+.TP
+.B \-t
+Enable tracing. Every word executed by the virtual machine is written to
+standard error. This is verbose and slow, but useful when debugging.
+.TP
+.BI \-l " FILE"
+Load a previously saved dictionary image from
+.IR FILE .
+The image must have been produced by the same
+.B zforth
+build, since the dictionary layout depends on the compile time configuration in
+.IR zfconf.h .
+.TP
+.B \-q
+Quiet. Suppress the banner and the interactive prompt.
+.SH "FORTH WORDS"
+The interpreter reaches the host through the
+.B sys
+word, which pops a system call number off the data stack. Seven calls are
+implemented, and
+.I core.zf
+gives each of them a name:
+.TP
+.B 0 sys \fR\(em\fP emit
+Write the character on top of the data stack to standard output.
+.TP
+.B 1 sys \fR\(em\fP .
+Print the value on top of the data stack.
+.TP
+.B 2 sys \fR\(em\fP tell
+Write a counted string from dictionary memory to standard output.
+.TP
+.B 128 sys \fR\(em\fP quit
+Exit the interpreter.
+.TP
+.B 129 sys \fR\(em\fP sin
+Replace the value on top of the data stack with its sine.
+.TP
+.B 130 sys \fR\(em\fP include
+Read the next word as a file name and evaluate that file.
+.TP
+.B 131 sys \fR\(em\fP save
+Write the current dictionary to
+.I zforth.save
+in the current directory.
+.PP
+Those names come from
+.I core.zf
+alone. Without it loaded, only the primitives compiled into the kernel exist, so
+even
+.B .
+is undefined and the raw
+.B 1 sys
+must be used instead.
+.SH FILES
+.TP
+.I %%DATADIR%%/core.zf
+Basic words and control structures. Almost everything else depends on it.
+.TP
+.I %%DATADIR%%/dict.zf
+Words for searching and listing the dictionary.
+.TP
+.I %%DATADIR%%/memaccess.zf
+Typed memory access words.
+.TP
+.I %%DATADIR%%/misc.zf
+Assorted words that have no better home.
+.TP
+.I %%DATADIR%%/mandel.zf
+ASCII Mandelbrot demo. Requires a floating point
+.IR zf_cell ,
+which is the default in this build.
+.TP
+.I ./zforth.save
+Dictionary image written by the
+.B save
+word.
+.SH "EXIT STATUS"
+.B zforth
+exits 0 on success, and 1 if a file given on the command line could not be
+evaluated.
+.SH EXAMPLES
+Start an interactive session with the standard library loaded:
+.PP
+.RS
+.EX
+$ zforth %%DATADIR%%/core.zf
+.EE
+.RE
+.PP
+Evaluate a script and exit:
+.PP
+.RS
+.EX
+$ echo ': double 2 * ; 21 double . cr' | zforth \-q %%DATADIR%%/core.zf
+42
+.EE
+.RE
+.PP
+Trace execution without the standard library, printing through the raw
+system call:
+.PP
+.RS
+.EX
+$ echo '1 2 + 1 sys' | zforth \-t \-q
+.EE
+.RE
+.SH "SEE ALSO"
+The zForth manual in
+.IR %%DOCDIR%% ,
+and
+.BR pkg-config (1)
+for building against the embeddable library
+.RB ( pkg-config
+.BR zforth ).
+.SH AUTHOR
+zForth was written by Ico Doornekamp <zforth@zevv.nl>.
