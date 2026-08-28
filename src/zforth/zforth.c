@@ -465,7 +465,12 @@ static void run(zf_ctx *ctx, const char *input)
 		 * dict_get_cell() on every instruction */
 
 		{
-			uint8_t b0 = ctx->dict[ctx->ip];
+			/* ctx->ip is bounds-checked here because the slow path it
+			 * replaces did so inside dict_get_bytes(). Without this an
+			 * EXIT to an attacker-controlled return-stack value reads
+			 * outside the dictionary. Out-of-range falls through to
+			 * dict_get_cell(), which aborts with ZF_ABORT_OUTSIDE_MEM. */
+			uint8_t b0 = ctx->ip < ZF_DICT_SIZE ? ctx->dict[ctx->ip] : 0x80;
 			if((b0 & 0x80) == 0) {
 				d = b0;
 				code = b0;
