@@ -9,9 +9,15 @@ CC	:= $(CROSS)gcc
 
 VPATH   := ../zforth
 CFLAGS	+= -I. -I../zforth
-CFLAGS  += -Os -g -pedantic -MMD
-CFLAGS  += -fsanitize=address -Wall -Wextra -Werror -Wno-unused-parameter -Wno-clobbered -Wno-unused-result
-LDFLAGS	+= -fsanitize=address -g 
+CFLAGS  += -O2 -g -pedantic -MMD
+CFLAGS  += -Wall -Wextra -Werror -Wno-unused-parameter -Wno-clobbered -Wno-unused-result
+LDFLAGS	+= -g
+
+# AddressSanitizer costs significant run time, so it is opt-in: 'make asan=1'
+ifdef asan
+CFLAGS	+= -fsanitize=address
+LDFLAGS	+= -fsanitize=address
+endif
 
 LIBS	+= -lm
 

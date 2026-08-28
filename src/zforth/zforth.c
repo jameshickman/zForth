@@ -456,13 +456,32 @@ static void run(zf_ctx *ctx, const char *input)
 {
 	while(ctx->ip != 0) {
 		zf_cell d;
-		zf_addr i, ip_org = ctx->ip;
-		zf_addr l = dict_get_cell(ctx, ctx->ip, &d);
-		zf_addr code = d;
+		zf_addr ip_org = ctx->ip;
+		zf_addr l, code;
 
-		trace(ctx, "\n "ZF_ADDR_FMT " " ZF_ADDR_FMT " ", ctx->ip, code);
-		for(i=0; i<RSP(ctx); i++) trace(ctx, "┊  ");
-		
+		/* Fetch the next opcode. The vast majority of cells in the
+		 * dictionary encode as a single byte, so that case is decoded
+		 * inline here instead of paying for a call into
+		 * dict_get_cell() on every instruction */
+
+		{
+			uint8_t b0 = ctx->dict[ctx->ip];
+			if((b0 & 0x80) == 0) {
+				d = b0;
+				code = b0;
+				l = 1;
+			} else {
+				l = dict_get_cell(ctx, ctx->ip, &d);
+				code = d;
+			}
+		}
+
+		if(TRACE(ctx)) {
+			zf_addr i;
+			trace(ctx, "\n "ZF_ADDR_FMT " " ZF_ADDR_FMT " ", ctx->ip, code);
+			for(i=0; i<RSP(ctx); i++) trace(ctx, "┊  ");
+		}
+
 		ctx->ip += l;
 
 		if(code < PRIM_COUNT) {
