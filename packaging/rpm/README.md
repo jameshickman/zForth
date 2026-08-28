@@ -125,10 +125,10 @@ layout of every context. Change it only together with a library rebuild and a
 
 ## Notes on the build
 
-The spec does not use the upstream `Makefile`. That Makefile appends
-`-fsanitize=address`, `-Os -g` and `-Werror` to `CFLAGS` and `LDFLAGS`
-unconditionally, none of which belong in a distribution build. The spec invokes
-the compiler directly instead, so only the distribution flags apply.
+The spec does not use the upstream `Makefile`. That Makefile appends `-O2 -g`
+and `-Werror` to `CFLAGS` unconditionally, neither of which belongs in a
+distribution build, and it has no install target. The spec invokes the compiler
+directly instead, so only the distribution flags apply.
 
 Both shared libraries are built with `-fno-semantic-interposition`. `zf_push()`
 and the other stack calls are public API, so under `-fPIC` the compiler
@@ -137,11 +137,12 @@ through the PLT instead of inlining. That costs the inner interpreter a factor
 of two against the same code linked statically. The symbols stay exported; only
 `LD_PRELOAD` interposition of them is given up.
 
-The untraced build gets its `zfconf.h` from a `sed` over the traced one rather
-than a second copy in the spec, so the two cannot drift apart in the dictionary
-and stack sizes that are baked into `struct zf_ctx`. The `sed` is followed by a
-`grep` that fails the build if it did not match, so an upstream rename of
-`ZF_ENABLE_TRACE` cannot silently produce two identical libraries.
+The two variants share one `zfconf.h`, so they cannot drift apart in the
+dictionary and stack sizes that are baked into `struct zf_ctx`. The header only
+defines `ZF_ENABLE_TRACE` if it is not already set, so the untraced build is
+just `-DZF_ENABLE_TRACE=0`. If that guard ever goes away upstream the header
+would win over the `-D` and the build would quietly produce a second traced
+library — which is what the `zf_host_trace()` assertion in `%check` catches.
 
 `%check` does three things: runs the interpreter against the packaged `core.zf`
 and compiles a word at run time, confirms both shared libraries export the API

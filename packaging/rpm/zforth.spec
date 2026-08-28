@@ -1,9 +1,9 @@
 # zForth has no tagged upstream releases, so this packages a git snapshot.
 # To move to a newer snapshot, update commit and snapdate below and refresh
 # the tarball with spectool -g.
-%global commit          41db72d165c1539d57f3f79970fc57ea881a79dc
+%global commit          848458cd932e649dda9831c187bb548574c454d3
 %global shortcommit     %(c=%{commit}; echo ${c:0:7})
-%global snapdate        20250815
+%global snapdate        20260828
 
 # Upstream ships no soname or ABI policy. The dictionary and stack sizes in
 # zfconf.h are compiled into struct zf_ctx, so any change to that header is an
@@ -23,7 +23,7 @@
 
 Name:           zforth
 Version:        0^%{snapdate}git%{shortcommit}
-Release:        3%{?dist}
+Release:        1%{?dist}
 Summary:        Small, embeddable Forth interpreter and compiler
 
 License:        MIT
@@ -120,9 +120,9 @@ dependency on the shared library.
 %autosetup -n zForth-%{commit}
 
 %build
-# The upstream Makefile appends -Os -g, -Werror and an AddressSanitizer build to
-# CFLAGS and LDFLAGS unconditionally, none of which belongs in a distribution
-# package. The compiler is driven directly here so only the distribution flags
+# The upstream Makefile appends -O2 -g and -Werror to CFLAGS unconditionally,
+# neither of which belongs in a distribution package, and it has no install
+# target. The compiler is driven directly here so only the distribution flags
 # are in effect.
 CFLAGS="%{build_cflags} -Isrc/zforth -Isrc/linux"
 LDFLAGS="%{build_ldflags}"
@@ -143,18 +143,14 @@ PICFLAGS="-fPIC -DPIC -fno-semantic-interposition"
 ln -s lib%{name}.so.%{libversion} lib%{name}.so.%{libmajor}
 ln -s lib%{name}.so.%{libversion} lib%{name}.so
 
-# Untraced shared library, for programs that never want a trace. The
-# configuration header is derived from the one the traced build uses rather than
-# duplicated, so the two cannot drift apart in the dictionary and stack sizes
-# that are baked into struct zf_ctx. The copy goes first on the include path.
-mkdir -p notrace
-sed -e 's/^\(#define[[:space:]]\{1,\}ZF_ENABLE_TRACE[[:space:]]\{1,\}\)1$/\10/' \
-        src/linux/zfconf.h > notrace/zfconf.h
-grep -q '^#define[[:space:]]\{1,\}ZF_ENABLE_TRACE[[:space:]]\{1,\}0$' notrace/zfconf.h || \
-        { echo "could not switch tracing off in zfconf.h" >&2; exit 1; }
-
-NTCFLAGS="%{build_cflags} -Inotrace -Isrc/zforth -Isrc/linux"
-%{__cc} $NTCFLAGS $PICFLAGS -c src/zforth/zforth.c -o zforth-notrace.shared.o
+# Untraced shared library, for programs that never want a trace. zfconf.h only
+# defines ZF_ENABLE_TRACE if it is not already set, so both variants share the
+# one configuration header and cannot drift apart in the dictionary and stack
+# sizes that are baked into struct zf_ctx. If that guard ever goes away the
+# header wins over -D and this quietly builds a second traced library, which is
+# what the zf_host_trace() assertion in %%check is there to catch.
+%{__cc} $CFLAGS $PICFLAGS -DZF_ENABLE_TRACE=0 \
+        -c src/zforth/zforth.c -o zforth-notrace.shared.o
 %{__cc} $LDFLAGS -shared -Wl,-soname,lib%{name}-notrace.so.%{libmajor} \
         -o lib%{name}-notrace.so.%{libversion} zforth-notrace.shared.o
 ln -s lib%{name}-notrace.so.%{libversion} lib%{name}-notrace.so.%{libmajor}
