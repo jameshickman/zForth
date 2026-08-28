@@ -94,6 +94,12 @@ you can choose to fit your needs. Documentation is included in the file
 A demo application for running zForth in linux is provided here, simply run `make`
 to build.
 
+`make test` builds and runs the tests in `test/`. These cover behaviour the
+snippets in `forth/` cannot: they assert the abort code an operation returns
+rather than the output it produces, which is the only way to see a missing
+bounds check, since an access just past the end of the dictionary reads
+adjacent members of `struct zf_ctx` and prints exactly what it should.
+
 To start zForth and load the core forth code, run:
 
 ````

@@ -8,3 +8,4 @@ zforth.save
 .zforth.hist
 *.so
 *.so.*
+test/test_bounds

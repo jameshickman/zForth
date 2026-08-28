@@ -1,7 +1,7 @@
 # zForth has no tagged upstream releases, so this packages a git snapshot.
 # To move to a newer snapshot, update commit and snapdate below and refresh
 # the tarball with spectool -g.
-%global commit          848458cd932e649dda9831c187bb548574c454d3
+%global commit          77e998e79aada4b3ef62b78e8938131ad8f48c76
 %global shortcommit     %(c=%{commit}; echo ${c:0:7})
 %global snapdate        20260828
 
@@ -27,7 +27,7 @@ Release:        1%{?dist}
 Summary:        Small, embeddable Forth interpreter and compiler
 
 License:        MIT
-URL:            https://github.com/zevv/zForth
+URL:            https://github.com/jameshickman/zForth
 Source0:        %{url}/archive/%{commit}/%{name}-%{shortcommit}.tar.gz
 # Written for this package; upstream ships no man page.
 Source1:        zforth.1
@@ -235,6 +235,25 @@ out=$(echo ': double 2 * ; 21 double . cr' | \
       ./%{name} -q %{buildroot}%{forthdir}/core.zf | tr -d ' \r')
 echo "$out" | grep -qx 42 || { echo "smoke test failed, got: '$out'" >&2; exit 1; }
 
+# The dictionary bound is what keeps a running program inside its own memory,
+# which is the property a program embedding this library depends on when it
+# runs Forth it did not write. It cannot be checked by output: an unchecked
+# access just past the end of the dictionary reads adjacent members of struct
+# zf_ctx, so the interpreter carries on and prints exactly what it should. The
+# test asserts the abort code instead. Run against both libraries, which are
+# built from the same source with different flags.
+# --export-dynamic for the same reason the interpreter needs it: the library
+# leaves the zf_host_* callbacks undefined and binds to the ones the program
+# provides, which are not in an executable's dynamic symbol table by default.
+# Without it this links and then dies on the first callback.
+for lib in %{name} %{name}-notrace; do
+  %{__cc} %{build_cflags} -Isrc/zforth -Isrc/linux test/test_bounds.c \
+          -L$PWD -l$lib %{build_ldflags} -Wl,--export-dynamic -lm \
+          -o bounds-check-$lib
+  LD_LIBRARY_PATH=$PWD ./bounds-check-$lib || \
+    { echo "dictionary bounds test failed against lib$lib" >&2; exit 1; }
+done
+
 # libzforth is expected to leave exactly the three zf_host_* callbacks to the
 # program that embeds it. Anything else unresolved in the zf_ namespace means
 # the library was built or linked wrong.
@@ -326,6 +345,13 @@ done
 %{_libdir}/lib%{name}.a
 
 %changelog
+* Fri Aug 28 2026 James Hickman <jameshickman0077@gmail.com> - 0^20260828git77e998e-1
+- Move to the 77e998e snapshot, which carries the inner interpreter work and
+  restores the bounds check on its inlined opcode fetch
+- Package libzforth-notrace, built from the same source with tracing compiled out
+- %%check now runs the dictionary bounds tests against both shared libraries
+- Point URL at the fork the snapshot is taken from, so Source0 resolves
+
 * Thu Aug 27 2026 James Hickman <jameshickman0077@gmail.com> - 0^20250815git41db72d-2
 - Rebuild with readline enabled, giving the interpreter line editing and history
 
