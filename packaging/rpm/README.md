@@ -1,13 +1,35 @@
 # RPM packaging for zForth
 
-Builds four packages from one spec:
+Builds six packages from one spec:
 
 | Package | Contents |
 | --- | --- |
 | `zforth` | `/usr/bin/zforth`, the Forth standard library in `/usr/share/zforth`, man page |
 | `libzforth` | `libzforth.so.0` — the interpreter as a shared library |
 | `libzforth-devel` | headers, link symlink, `zforth.pc` |
+| `libzforth-notrace` | `libzforth-notrace.so.0` — the same library without the tracing code |
+| `libzforth-notrace-devel` | link symlink, `zforth-notrace.pc` (headers come from `libzforth-devel`) |
 | `libzforth-static` | `libzforth.a` |
+
+## Which library to link
+
+`libzforth` and `libzforth-notrace` are built from the same source and the same
+`zfconf.h`, and differ only in whether `ZF_ENABLE_TRACE` is on. They are
+interchangeable at the API and ABI level, since that setting does not appear in
+`struct zf_ctx`, and they carry different sonames so both can be installed at
+once.
+
+Compiling tracing in costs about 45% of interpreter run time even when tracing
+is switched off at run time through the `trace` user variable, because every
+trace site still has to test the flag. Link `libzforth` if you want
+`zf_host_trace()` output for debugging Forth code; link `libzforth-notrace`
+otherwise. The untraced library never calls `zf_host_trace()`, so a program
+using it does not have to define that callback.
+
+```sh
+cc $(pkg-config --cflags zforth-notrace) prog.c \
+   $(pkg-config --libs zforth-notrace) -lm -o prog
+```
 
 ## Building
 
@@ -54,6 +76,8 @@ Or pick what you need — the runtime alone is just the first two:
 ```sh
 sudo dnf install ./libzforth-0*.rpm ./zforth-0*.rpm            # interpreter
 sudo dnf install ./libzforth-devel-0*.rpm                       # to build against it
+sudo dnf install ./libzforth-notrace-0*.rpm \
+                 ./libzforth-notrace-devel-0*.rpm               # untraced variant
 sudo dnf install ./libzforth-static-0*.rpm                      # to link it statically
 ```
 
@@ -89,7 +113,7 @@ zf_cell        zf_host_parse_num(zf_ctx *ctx, const char *buf);
 They are undefined in `libzforth.so` and bind back to the program at run time,
 which only works if the program exports them. `pkg-config --libs zforth`
 therefore includes `-Wl,--export-dynamic`; drop it and the program will fail to
-start. Upstream's `src/linux/main.c` implements all three for the CLI, if you
+start. `libzforth-notrace.so` leaves only the first and last undefined. Upstream's `src/linux/main.c` implements all three for the CLI, if you
 want a second reference.
 
 `zfconf.h`, installed alongside `zforth.h`, holds the compile time
@@ -106,8 +130,24 @@ The spec does not use the upstream `Makefile`. That Makefile appends
 unconditionally, none of which belong in a distribution build. The spec invokes
 the compiler directly instead, so only the distribution flags apply.
 
+Both shared libraries are built with `-fno-semantic-interposition`. `zf_push()`
+and the other stack calls are public API, so under `-fPIC` the compiler
+otherwise has to assume the dynamic linker could interpose them, and calls them
+through the PLT instead of inlining. That costs the inner interpreter a factor
+of two against the same code linked statically. The symbols stay exported; only
+`LD_PRELOAD` interposition of them is given up.
+
+The untraced build gets its `zfconf.h` from a `sed` over the traced one rather
+than a second copy in the spec, so the two cannot drift apart in the dictionary
+and stack sizes that are baked into `struct zf_ctx`. The `sed` is followed by a
+`grep` that fails the build if it did not match, so an upstream rename of
+`ZF_ENABLE_TRACE` cannot silently produce two identical libraries.
+
 `%check` does three things: runs the interpreter against the packaged `core.zf`
-and compiles a word at run time, confirms the shared library exports the API in
-`zforth.h` and leaves only the three `zf_host_*` callbacks undefined, and builds
-the shipped example through `pkg-config` the way a consumer of the devel package
-would — so a broken `zforth.pc` fails the build rather than the user.
+and compiles a word at run time, confirms both shared libraries export the API
+in `zforth.h` and leave only the expected `zf_host_*` callbacks undefined — and
+that `libzforth-notrace.so` does not reference `zf_host_trace()` at all, which
+is what proves the tracing code really was left out — and builds the shipped
+example through `pkg-config` against each of `zforth.pc` and
+`zforth-notrace.pc`, the way a consumer of the devel packages would, so a broken
+`.pc` fails the build rather than the user.
