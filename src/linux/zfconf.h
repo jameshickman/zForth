@@ -5,9 +5,15 @@
  * zf_host_trace() function to be implemented. Adds about one kB to .text and
  * .rodata, dramatically reduces speed, but is very useful. Make sure to enable
  * tracing at run time when calling zf_init() or by setting the 'trace' user
- * variable to 1 */
+ * variable to 1.
+ *
+ * Left overridable from the command line so that a traced and an untraced
+ * build can share this file: -DZF_ENABLE_TRACE=0. Tracing does not appear in
+ * struct zf_ctx, so the two builds stay ABI compatible with each other. */
 
+#ifndef ZF_ENABLE_TRACE
 #define ZF_ENABLE_TRACE 1
+#endif
 
 
 /* Set to 1 to add boundary checks to stack operations. Increases .text size
